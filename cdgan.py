@@ -1,8 +1,14 @@
-#         conditional DCGAN
+#       
+#	Conditional DCGAN
 #
 #	Author: Zhanfu Yang
 #	email: yang1676@purdue.edu
 #
+#	Class 0:  No bed, No lamp
+#	Class 1:  Bed, No lamp
+#	Class 2:  No bed, lamp
+#	Class 3:  bed, lamp
+#		
 
 import os, time, itertools, imageio, pickle, random
 import numpy as np
