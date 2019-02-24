@@ -52,7 +52,7 @@ def generator(x, y_label, isTrain=True, reuse=False):
                 deconv3 = tf.layers.conv2d_transpose(lrelu2, 128, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
                 lrelu3 = l_relu(tf.layers.batch_normalization(deconv3, training=isTrain), 0.2)
         	# output layer
-        	deconv4 = tf.layers.conv2d_transpose(lrelu3, 1, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
+        	deconv4 = tf.layers.conv2d_transpose(lrelu3, 3, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
         	output = tf.nn.tanh(deconv4)
 		
 		return output
@@ -209,14 +209,31 @@ len_0 = len(data_0)
 len_1 = len(data_1)
 len_2 = len(data_2)
 len_3 = len(data_3)
+
 # Give some labels to it.
-label_0 = [1.0, 0.0, 0.0, 0.0]*len_0
-label_1 = [0,0, 1.0, 0.0, 0.0]*len_1
-label_2 = [0.0, 0.0, 1.0, 0.0]*len_2
-label_3 = [0.0, 0.0, 0.0, 1.0]*len_3
+label_0 = np.zeros((1,4))
+label_1 = np.zeros((1,4))
+label_2 = np.zeros((1,4))
+label_3 = np.zeros((1,4))
+label_0[0][0]=1.0
+label_1[0][1]=1.0
+label_2[0][2]=1.0
+label_3[0][3]=1.0
+train_label = label_0
+
+for i in range(0,len_0-1):
+	train_label=np.concatenate((train_label,label_0), axis=0)
+for i in range(0,len_1):
+        train_label=np.concatenate((train_label,label_1), axis=0)
+for i in range(0,len_2):
+        train_label=np.concatenate((train_label,label_2), axis=0)
+for i in range(0,len_3):
+        train_label=np.concatenate((train_label,label_3), axis=0)
+
+print(label_0)
 
 files_set = data_0 + data_1 + data_2 + data_3
-train_label = label_0 + label_1 + label_2 + label_3
+print(train_label.shape)
 train_set = sample = [
           get_image(	sample_file,
                     	input_height=img_size,
@@ -310,15 +327,17 @@ for epoch in range(train_epoch):
 	train_set[:], train_label[:] = zip(*combined)
 	shuffled_set=np.array(train_set)
 	shuffled_label=np.array(train_label)
+	print(shuffled_label.ndim)
 	for iter in range(len(shuffled_set) // batch_size):
         	# update discriminator
         	x_ = shuffled_set[iter*batch_size:(iter+1)*batch_size]
-        	y_label_ = shuffled_label[iter*batch_size:(iter+1)*batch_size].reshape([batch_size, 1, 1, 1])
+        	y_label_ = shuffled_label[iter*batch_size:(iter+1)*batch_size].reshape([batch_size, 1, 1, 4])
         	y_fill_ = y_label_ * np.ones([batch_size, img_size, img_size, 4])
-        	z_ = np.random.normal(0, 1, (batch_size, 1, 1, 16))
+        	print(str(iter)+"-->Initial")
+		z_ = np.random.normal(0, 1, (batch_size, 1, 1, 16))
 
         	loss_d_, _ = sess.run([D_loss, D_optim], {x: x_, z: z_, y_fill: y_fill_, y_label: y_label_, isTrain: True})
-
+		print(str(iter)+"-->start trainning")
         # update generator
         	z_ = np.random.normal(0, 1, (batch_size, 1, 1, 16))
         	y_ = np.random.randint(0, 4, (batch_size, 1))
