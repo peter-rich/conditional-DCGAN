@@ -77,7 +77,7 @@ def discriminator(x, y_fill, isTrain=True, reuse=False):
 ############################################
 # preprocess
 img_size = 256
-onehot = np.eye(10)
+onehot = np.eye(4)
 temp_z_ = np.random.normal(0, 1, (4, 1, 1, 64))
 fixed_z_ = temp_z_
 fixed_y_ = np.zeros((4, 1))
