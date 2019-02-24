@@ -14,6 +14,9 @@ import os, time, itertools, imageio, pickle, random
 import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
+from glob import glob
+#from skimage.io import imread
+import scipy.misc
 
 __author__ = 'Zhanfu Yang'
 __email__ = 'yang1676@purdue.edu'
@@ -29,23 +32,28 @@ def l_relu(X, leak=0.2):
 def generator(x, y_label, isTrain=True, reuse=False):
 	with tf.variable_scope('generator', reuse=reuse):
 		# initializer
-		w_init = tf.truncated_normal_initializer(mean=0.0, stddev=0.02)
-		b_init = tf.constant_initializer(0.0)
-		
-		# concat layer
-		cat1 = tf.concat([x, y_label], 3)
-		
-		# first hidden layer
-		deconv1 = tf.layers.conv2d_transpose(cat1, 256, [7, 7], strides=(1, 1), padding='valid', kernel_initializer=w_init, bias_initializer=b_init)
-		lrelu1 = l_relu(tf.layers.batch_normalization(deconv1, training=isTrain), 0.2)
-		
-		# second hidden layer
-		deconv2 = tf.layers.conv2d_transpose(lrelu1, 128, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
-		lrelu2 = l_relu(tf.layers.batch_normalization(deconv2, training=isTrain), 0.2)
+        	w_init = tf.truncated_normal_initializer(mean=0.0, stddev=0.02)
+        	b_init = tf.constant_initializer(0.0)
 
+        	# concat layer
+        	cat1 = tf.concat([x, y_label], 3)
+		# 0 hidden layer
+		deconv0 = tf.layers.conv2d_transpose(cat1, 1024, [16, 16], strides=(2, 2), padding='valid', kernel_initializer=w_init, bias_initializer=b_init)
+                lrelu1 = l_relu(tf.layers.batch_normalization(deconv0, training=isTrain), 0.2)
+        	# 1st hidden layer
+        	deconv1 = tf.layers.conv2d_transpose(deconv0, 512, [8, 8], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
+        	lrelu1 = l_relu(tf.layers.batch_normalization(deconv1, training=isTrain), 0.2)
+
+        	# 2nd hidden layer
+        	deconv2 = tf.layers.conv2d_transpose(lrelu1, 256, [8, 8], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
+        	lrelu2 = l_relu(tf.layers.batch_normalization(deconv2, training=isTrain), 0.2)
+		# 3rd hidden layer
+		
+                deconv3 = tf.layers.conv2d_transpose(lrelu2, 128, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
+                lrelu3 = l_relu(tf.layers.batch_normalization(deconv3, training=isTrain), 0.2)
         	# output layer
-        	deconv3 = tf.layers.conv2d_transpose(lrelu2, 1, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
-		output = tf.nn.tanh(deconv3)
+        	deconv4 = tf.layers.conv2d_transpose(lrelu3, 1, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
+        	output = tf.nn.tanh(deconv4)
 		
 		return output
 
@@ -57,16 +65,17 @@ def discriminator(x, y_fill, isTrain=True, reuse=False):
 		b_init = tf.constant_initializer(0.0)
 		
 		# concat layer
+		print("D->0->layer->D")
 		cat1 = tf.concat([x, y_fill], 3)
-
+		print("D->1->layer->D")
 		# 1st hidden layer
 		cov1 = tf.layers.conv2d(cat1, 128, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
 		relu1 = l_relu(cov1, 0.2)
-
+		print("D->2->layer->D")
 		# 2nd hidden layer
-		cov2 = tf.layers.conv2d(relu1, 256, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
+		cov2 = tf.layers.conv2d(relu1, 256, [7, 7], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
 		relu2 = l_relu(tf.layers.batch_normalization(cov2, training=isTrain), 0.2)
-
+		print("D->3->layer->D")
 		# output layer
 		cov3 = tf.layers.conv2d(relu2, 1, [7, 7], strides=(1, 1), padding='valid', kernel_initializer=w_init)
 		output = tf.nn.sigmoid(cov3)
@@ -81,7 +90,7 @@ onehot = np.eye(4)
 temp_z_ = np.random.normal(0, 1, (4, 1, 1, 16))
 fixed_z_ = temp_z_
 fixed_y_ = np.zeros((4, 1))
-for i in range(4):
+for i in range(3):
 	fixed_z_ = np.concatenate([fixed_z_, temp_z_], 0)
 	temp = np.ones((4, 1)) + i
 	fixed_y_ = np.concatenate([fixed_y_, temp], 0)
@@ -135,8 +144,42 @@ def show_train_hist(hist, show = False, save = False, path = 'Train_hist.png'):
     	else:
         	plt.close()
 
+def center_crop(x, crop_h, crop_w,
+                resize_h=64, resize_w=64):
+  if crop_w is None:
+    crop_w = crop_h
+  h, w = x.shape[:2]
+  j = int(round((h - crop_h)/2.))
+  i = int(round((w - crop_w)/2.))
+  return scipy.misc.imresize(
+      x[j:j+crop_h, i:i+crop_w], [resize_h, resize_w])
+
+def transform(image, input_height, input_width, 
+              resize_height=64, resize_width=64, crop=True):
+  if crop:
+    cropped_image = center_crop(
+      image, input_height, input_width, 
+      resize_height, resize_width)
+  else:
+    cropped_image = scipy.misc.imresize(image, [resize_height, resize_width])
+  return np.array(cropped_image)/127.5 - 1.
+
+def imread(path, grayscale = False):
+  if (grayscale):
+    return scipy.misc.imread(path, flatten = True).astype(np.float)
+  else:
+    return scipy.misc.imread(path).astype(np.float)
+
+def get_image(image_path, input_height, input_width,
+              resize_height=64, resize_width=64,
+              crop=True, grayscale=False):
+  image = imread(image_path, grayscale)
+  return transform(image, input_height, input_width,
+                   resize_height, resize_width, crop)
+
+
 # training parameters
-batch_size = 16
+batch_size = 32
 input_height = 256
 output_hight = 256
 
@@ -167,14 +210,21 @@ len_1 = len(data_1)
 len_2 = len(data_2)
 len_3 = len(data_3)
 # Give some labels to it.
-label_0 = [0.0]*len_0
-label_1 = [1.0]*len_1
-label_2 = [2.0]*len_2
-label_3 = [3.0]*len_3
+label_0 = [1.0, 0.0, 0.0, 0.0]*len_0
+label_1 = [0,0, 1.0, 0.0, 0.0]*len_1
+label_2 = [0.0, 0.0, 1.0, 0.0]*len_2
+label_3 = [0.0, 0.0, 0.0, 1.0]*len_3
 
-train_set = data_0 + data_1 + data_2 + data_3
+files_set = data_0 + data_1 + data_2 + data_3
 train_label = label_0 + label_1 + label_2 + label_3
-
+train_set = sample = [
+          get_image(	sample_file,
+                    	input_height=img_size,
+                    	input_width=img_size,
+                    	resize_height=img_size,
+                    	resize_width=img_size,
+			crop = False,
+			grayscale=False) for sample_file in files_set]
 # shuffle the data together with the same order.
 combined = list(zip(train_set, train_label))
 random.shuffle(combined)
@@ -185,27 +235,32 @@ train_set[:], train_label[:] = zip(*combined)
 
 c_dim = imread(data_0[0]).shape[-1]
 ##############
-mnist = input_data.read_data_sets("MNIST_data/", one_hot=True, reshape=[])
+#mnist = input_data.read_data_sets("MNIST_data/", one_hot=True, reshape=[])
 ###
 # variables : input
-x = tf.placeholder(tf.float32, shape=(None, img_size, img_size, 1))
+x = tf.placeholder(tf.float32, shape=(None, img_size, img_size, 3))
 z = tf.placeholder(tf.float32, shape=(None, 1, 1, 16))
 y_label = tf.placeholder(tf.float32, shape=(None, 1, 1, 4))
 y_fill = tf.placeholder(tf.float32, shape=(None, img_size, img_size, 4))
 isTrain = tf.placeholder(dtype=tf.bool)
 
+print("Step 1")
 # networks : generator
 G_z = generator(z, y_label, isTrain)
-
+print(G_z.get_shape())
 # networks : discriminator
 D_real, D_real_logits = discriminator(x, y_fill, isTrain)
 D_fake, D_fake_logits = discriminator(G_z, y_fill, isTrain, reuse=True)
-
+print(str("real and fake:"))
+print(D_real_logits.get_shape())
+print(D_fake_logits.get_shape())
+print("Step 2")
 # loss for each network
-D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_real_logits, labels=tf.ones([batch_size, 1, 1, 1])))
-D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=tf.zeros([batch_size, 1, 1, 1])))
+D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_real_logits, labels=tf.ones([batch_size, 58, 58, 1])))
+print("Step 3")
+D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=tf.zeros([batch_size, 58, 58, 1])))
 D_loss = D_loss_real + D_loss_fake
-G_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=tf.ones([batch_size, 1, 1, 1])))
+G_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=tf.ones([batch_size, 58, 58, 1])))
 
 # trainable variables for each network
 T_vars = tf.trainable_variables()
@@ -250,13 +305,15 @@ for epoch in range(train_epoch):
 	G_losses = []
 	D_losses = []
 	epoch_start_time = time.time()
-	shuffle_idxs = random.sample(range(0, train_set.shape[0]), train_set.shape[0])
-	shuffled_set = train_set[shuffle_idxs]
-	shuffled_label = train_label[shuffle_idxs]
-	for iter in range(shuffled_set.shape[0] // batch_size):
+	ned = list(zip(train_set, train_label))
+	random.shuffle(combined)
+	train_set[:], train_label[:] = zip(*combined)
+	shuffled_set=np.array(train_set)
+	shuffled_label=np.array(train_label)
+	for iter in range(len(shuffled_set) // batch_size):
         	# update discriminator
         	x_ = shuffled_set[iter*batch_size:(iter+1)*batch_size]
-        	y_label_ = shuffled_label[iter*batch_size:(iter+1)*batch_size].reshape([batch_size, 1, 1, 4])
+        	y_label_ = shuffled_label[iter*batch_size:(iter+1)*batch_size].reshape([batch_size, 1, 1, 1])
         	y_fill_ = y_label_ * np.ones([batch_size, img_size, img_size, 4])
         	z_ = np.random.normal(0, 1, (batch_size, 1, 1, 16))
 
