@@ -72,14 +72,13 @@ def discriminator(x, y_fill, isTrain=True, reuse=False):
 		output = tf.nn.sigmoid(cov3)
 		return output, cov3
 
-
 ############################################
 #   Main function()
 ############################################
 # preprocess
-img_size = 28
+img_size = 256
 onehot = np.eye(10)
-temp_z_ = np.random.normal(0, 1, (4, 1, 1, 100))
+temp_z_ = np.random.normal(0, 1, (4, 1, 1, 64))
 fixed_z_ = temp_z_
 fixed_y_ = np.zeros((4, 1))
 for i in range(4):
@@ -87,7 +86,7 @@ for i in range(4):
 	temp = np.ones((4, 1)) + i
 	fixed_y_ = np.concatenate([fixed_y_, temp], 0)
 
-fixed_y_ = onehot[fixed_y_.astype(np.int32)].reshape((100, 1, 1, 4))
+fixed_y_ = onehot[fixed_y_.astype(np.int32)].reshape((64, 1, 1, 4))
 def show_result(num_epoch, show = False, save = False, path = 'result.png'):
 	test_images = sess.run(G_z, {z: fixed_z_, y_label: fixed_y_, isTrain: False})
 	size_figure_grid = 4
@@ -95,9 +94,9 @@ def show_result(num_epoch, show = False, save = False, path = 'result.png'):
 	for i, j in itertools.product(range(size_figure_grid), range(size_figure_grid)):
 		ax[i, j].get_xaxis().set_visible(False)
 		ax[i, j].get_yaxis().set_visible(False)
-	for k in range(10*10):
-		i = k // 10
-		j = k % 10
+	for k in range(64):
+		i = k // 8
+		j = k % 8
 		ax[i, j].cla()
 		ax[i, j].imshow(np.reshape(test_images[k], (img_size, img_size)), cmap='gray')
 
@@ -137,19 +136,62 @@ def show_train_hist(hist, show = False, save = False, path = 'Train_hist.png'):
         	plt.close()
 
 # training parameters
-batch_size = 100
+batch_size = 64
+input_height = 256
+output_hight = 256
+
 # lr = 0.0002
-train_epoch = 30
+train_epoch = 400
 global_step = tf.Variable(0, trainable=False)
 lr = tf.train.exponential_decay(0.0002, global_step, 500, 0.95, staircase=True)
 # load MNIST
-mnist = input_data.read_data_sets("MNIST_data/", one_hot=True, reshape=[])
+#### DataSet
+data_dir = "../../scratch/"
+dataset_name_0 = "EmptyRoom"
+dataset_name_1 = "OnlyOneBed"
+dataset_name_2 = "RoomWithLamp"
+dataset_name_3 = "bedroom"
+## Data path:
+data_path_0 = os.path.join(data_dir, dataset_name_0, "*.jpg")
+data_path_1 = os.path.join(data_dir, dataset_name_1, "*.jpg")
+data_path_2 = os.path.join(data_dir, dataset_name_2, "*.jpg")
+data_path_3 = os.path.join(data_dir, dataset_name_3, "*.jpg")
 
+data_0 = glob(data_path_0)
+data_1 = glob(data_path_1)
+data_2 = glob(data_path_2)
+data_3 = glob(data_path_3)
+# Length
+len_0 = len(data_0)
+len_1 = len(data_1)
+len_2 = len(data_2)
+len_3 = len(data_3)
+# Give some labels to it.
+label_0 = [0.0]*len_0
+label_1 = [1.0]*len_1
+label_2 = [2.0]*len_2
+label_3 = [3.0]*len_3
+
+train_set = data_0 + data_1 + data_2 + data_3
+train_label = label_0 + label_1 + label_2 + label_3
+
+# shuffle the data together with the same order.
+combined = list(zip(train_set, train_label))
+random.shuffle(combined)
+
+train_set[:], train_label[:] = zip(*combined)
+
+# dimension
+
+c_dim = imread(data_0[0]).shape[-1]
+##############
+mnist = input_data.read_data_sets("MNIST_data/", one_hot=True, reshape=[])
+###
 # variables : input
 x = tf.placeholder(tf.float32, shape=(None, img_size, img_size, 1))
-z = tf.placeholder(tf.float32, shape=(None, 1, 1, 100))
-y_label = tf.placeholder(tf.float32, shape=(None, 1, 1, 10))
-y_fill = tf.placeholder(tf.float32, shape=(None, img_size, img_size, 10))
+z = tf.placeholder(tf.float32, shape=(None, 1, 1, 64))
+y_label = tf.placeholder(tf.float32, shape=(None, 1, 1, 4))
+y_fill = tf.placeholder(tf.float32, shape=(None, img_size, img_size, 4))
 isTrain = tf.placeholder(dtype=tf.bool)
 
 # networks : generator
@@ -185,12 +227,10 @@ tf.global_variables_initializer().run()
 # MNIST resize and normalization
 # train_set = tf.image.resize_images(mnist.train.images, [img_size, img_size]).eval()
 # train_set = (train_set - 0.5) / 0.5  # normalization; range: -1 ~ 1
-train_set = (mnist.train.images - 0.5) / 0.5
-train_label = mnist.train.labels
 
 # results save folder
-root = 'MNIST_cDCGAN_results/'
-model = 'MNIST_cDCGAN_'
+root = 'Bedroom_cDCGAN_results/'
+model = 'Bedroom_cDCGAN_'
 if not os.path.isdir(root):
     os.mkdir(root)
 if not os.path.isdir(root + 'Fixed_results'):
@@ -216,14 +256,14 @@ for epoch in range(train_epoch):
 	for iter in range(shuffled_set.shape[0] // batch_size):
         	# update discriminator
         	x_ = shuffled_set[iter*batch_size:(iter+1)*batch_size]
-        	y_label_ = shuffled_label[iter*batch_size:(iter+1)*batch_size].reshape([batch_size, 1, 1, 10])
-        	y_fill_ = y_label_ * np.ones([batch_size, img_size, img_size, 10])
-        	z_ = np.random.normal(0, 1, (batch_size, 1, 1, 100))
+        	y_label_ = shuffled_label[iter*batch_size:(iter+1)*batch_size].reshape([batch_size, 1, 1, 4])
+        	y_fill_ = y_label_ * np.ones([batch_size, img_size, img_size, 4])
+        	z_ = np.random.normal(0, 1, (batch_size, 1, 1, 64))
 
         	loss_d_, _ = sess.run([D_loss, D_optim], {x: x_, z: z_, y_fill: y_fill_, y_label: y_label_, isTrain: True})
 
         # update generator
-        	z_ = np.random.normal(0, 1, (batch_size, 1, 1, 100))
+        	z_ = np.random.normal(0, 1, (batch_size, 1, 1, 64))
         	y_ = np.random.randint(0, 4, (batch_size, 1))
         	y_label_ = onehot[y_.astype(np.int32)].reshape([batch_size, 1, 1, 4])
         	y_fill_ = y_label_ * np.ones([batch_size, img_size, img_size, 4])
