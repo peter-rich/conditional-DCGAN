@@ -78,7 +78,7 @@ def discriminator(x, y_fill, isTrain=True, reuse=False):
 # preprocess
 img_size = 256
 onehot = np.eye(4)
-temp_z_ = np.random.normal(0, 1, (4, 1, 1, 64))
+temp_z_ = np.random.normal(0, 1, (4, 1, 1, 16))
 fixed_z_ = temp_z_
 fixed_y_ = np.zeros((4, 1))
 for i in range(4):
@@ -86,7 +86,7 @@ for i in range(4):
 	temp = np.ones((4, 1)) + i
 	fixed_y_ = np.concatenate([fixed_y_, temp], 0)
 
-fixed_y_ = onehot[fixed_y_.astype(np.int32)].reshape((64, 1, 1, 4))
+fixed_y_ = onehot[fixed_y_.astype(np.int32)].reshape((16, 1, 1, 4))
 def show_result(num_epoch, show = False, save = False, path = 'result.png'):
 	test_images = sess.run(G_z, {z: fixed_z_, y_label: fixed_y_, isTrain: False})
 	size_figure_grid = 4
@@ -94,9 +94,9 @@ def show_result(num_epoch, show = False, save = False, path = 'result.png'):
 	for i, j in itertools.product(range(size_figure_grid), range(size_figure_grid)):
 		ax[i, j].get_xaxis().set_visible(False)
 		ax[i, j].get_yaxis().set_visible(False)
-	for k in range(64):
-		i = k // 8
-		j = k % 8
+	for k in range(16):
+		i = k // 4
+		j = k % 4
 		ax[i, j].cla()
 		ax[i, j].imshow(np.reshape(test_images[k], (img_size, img_size)), cmap='gray')
 
@@ -136,7 +136,7 @@ def show_train_hist(hist, show = False, save = False, path = 'Train_hist.png'):
         	plt.close()
 
 # training parameters
-batch_size = 64
+batch_size = 16
 input_height = 256
 output_hight = 256
 
@@ -189,7 +189,7 @@ mnist = input_data.read_data_sets("MNIST_data/", one_hot=True, reshape=[])
 ###
 # variables : input
 x = tf.placeholder(tf.float32, shape=(None, img_size, img_size, 1))
-z = tf.placeholder(tf.float32, shape=(None, 1, 1, 64))
+z = tf.placeholder(tf.float32, shape=(None, 1, 1, 16))
 y_label = tf.placeholder(tf.float32, shape=(None, 1, 1, 4))
 y_fill = tf.placeholder(tf.float32, shape=(None, img_size, img_size, 4))
 isTrain = tf.placeholder(dtype=tf.bool)
@@ -258,12 +258,12 @@ for epoch in range(train_epoch):
         	x_ = shuffled_set[iter*batch_size:(iter+1)*batch_size]
         	y_label_ = shuffled_label[iter*batch_size:(iter+1)*batch_size].reshape([batch_size, 1, 1, 4])
         	y_fill_ = y_label_ * np.ones([batch_size, img_size, img_size, 4])
-        	z_ = np.random.normal(0, 1, (batch_size, 1, 1, 64))
+        	z_ = np.random.normal(0, 1, (batch_size, 1, 1, 16))
 
         	loss_d_, _ = sess.run([D_loss, D_optim], {x: x_, z: z_, y_fill: y_fill_, y_label: y_label_, isTrain: True})
 
         # update generator
-        	z_ = np.random.normal(0, 1, (batch_size, 1, 1, 64))
+        	z_ = np.random.normal(0, 1, (batch_size, 1, 1, 16))
         	y_ = np.random.randint(0, 4, (batch_size, 1))
         	y_label_ = onehot[y_.astype(np.int32)].reshape([batch_size, 1, 1, 4])
         	y_fill_ = y_label_ * np.ones([batch_size, img_size, img_size, 4])

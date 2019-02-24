@@ -1,8 +1,0 @@
-
-The following have been reloaded with a version change:
-  1) cuda/10.0.130 => cuda/9.0.176
-
-Traceback (most recent call last):
-  File "cdgan.py", line 89, in <module>
-    fixed_y_ = onehot[fixed_y_.astype(np.int32)].reshape((64, 1, 1, 4))
-ValueError: cannot reshape array of size 200 into shape (64,1,1,4)
