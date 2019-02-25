@@ -13,3 +13,9 @@ In this work, we are going to regard
 3 ->bed, lamp
 
 
+## Run
+`python cdgan.py`
+
+## Parameters:
+
+To do list --->
